@@ -1,5 +1,5 @@
 from typing import List, Tuple, Optional
-from random import shuffle
+from random import shuffle, choice
 
 import cv2
 import numpy as np
@@ -60,8 +60,7 @@ class Collage:
 
         return np.concatenate(row_images, axis=1)
 
-
-    def load_image_paths(self, image_meta: List[ImageMeta], threshold: Optional[int] = None, repeat = True):
+    def load_image_paths(self, image_meta: List[ImageMeta], threshold: Optional[int] = None, offset: int = 10, repeat = True):
         if len(image_meta) < self.n_cols*self.n_rows and not repeat:
             raise RuntimeError('Cannot have less images than the ones needed for the collage.s')
 
@@ -74,32 +73,32 @@ class Collage:
         print('Finding the best images to use for the collage...')
         for i, j in progressbar(pixels):
             b, g, r = self._image[i][j]
-            image_index = self.get_best_match(all_images, (r, g, b), threshold=threshold)
+            image_index = self.get_best_match(all_images, (r, g, b), threshold=threshold, offset=offset)
             self._image_paths[i][j] = all_images[image_index].path
 
             if not repeat:
                 all_images.pop(image_index)
 
-
-    def get_best_match(self, img_list, color: Tuple[int, int, int], threshold: Optional[int] = None) -> int:
+    def get_best_match(self, img_list, color: Tuple[int, int, int], threshold: Optional[int] = None, offset: int = 10) -> int:
         min_dist: Optional[int] = None
-        best_match: Optional[int] = None
+        good_matches: List[Tuple[int, int]] = []
 
         for i, img in enumerate(img_list):
             dist = self.get_color_dist(img.means, color)
 
             if min_dist is None:
                 min_dist = dist
-                best_match = i
+                good_matches = [(dist, i)]
             elif dist < min_dist:
                 min_dist = dist
-                best_match = i
+                good_matches = [(dist, i)] + [(d, index) for d, index in good_matches if d - dist < offset]
+            elif dist - min_dist < offset:
+                good_matches.append((dist, i))
 
-        if threshold is not None:
-            if min_dist > threshold:
-                raise RuntimeError('Unable to satisfy the proposed threshold.')
+        if threshold is not None and min_dist > threshold:
+            raise RuntimeError('Unable to satisfy the proposed threshold.')
 
-        return best_match
+        return choice(good_matches)[1]
 
     @staticmethod
     def get_color_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> int:

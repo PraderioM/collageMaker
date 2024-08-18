@@ -46,9 +46,9 @@ def get_out_path() -> str:
             return path
 
 
-def get_n_images(dimension:str, default: int = 100) -> int:
+def get_integer(question:str, default: int = 100, min_val: int = 2) -> int:
     while True:
-        n = input(f'Insert number of images you want to have on each {dimension} of the collage [{default}]:\n\t')
+        n = input(f'{question} [{default}]:\n\t')
 
         if len(n) == 0:
             return default
@@ -57,8 +57,8 @@ def get_n_images(dimension:str, default: int = 100) -> int:
             print(f'`{n}` is not a number. Please insert number again.')
         else:
             n = int(n)
-            if n <= 1:
-                print(f'Please insert an integer greater or equal than 2.')
+            if n < min_val:
+                print(f'Please insert an integer greater or equal than {min_val}.')
             else:
                 return n
 
@@ -84,11 +84,12 @@ def main():
     dir_path = get_dir_path()
     image_path = get_img_path()
     out_path = get_out_path()
-    n_cols = get_n_images('row')
-    n_rows = get_n_images('column')
+    n_cols = get_integer('Insert number of images you want to have on each row of the collage', 80, 2)
+    n_rows = get_integer('Insert number of images you want to have on each column of the collage', 80, 2)
+    offset = get_integer('Insert the how far away from each other can the images closest to the original be', 10, 0)
     collage = Collage.from_image(cv2.imread(image_path), n_rows, n_cols)
     metadata = get_metadata(dir_path)
-    collage.load_image_paths(metadata)
+    collage.load_image_paths(metadata, threshold=None, offset=offset, repeat=True)
     cv2.imwrite(out_path, collage.make_collage())
 
 if __name__ == '__main__':
