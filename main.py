@@ -33,11 +33,15 @@ def get_metadata(dir_path: str) -> List[ImageMeta]:
 def main():
     dir_path = get_dir_path()
     image_path = get_img_path()
+    image = cv2.imread(image_path)
+    in_h, in_w, _ = image.shape
     out_path = get_out_path('Insert path where you want to save the collage')
     n_cols = get_integer('Insert number of images you want to have on each row of the collage', 80, 2)
     n_rows = get_integer('Insert number of images you want to have on each column of the collage', 80, 2)
+    out_h = get_integer(f'The input image height was {in_h} Insert output image height', in_h*4, 2)
+    out_w = get_integer(f'The input image width was {in_w} Insert output image width', in_w*4, 2)
     offset = get_integer('Insert the how far away from each other can the images closest to the original be', 10, 0)
-    collage = Collage.from_image(cv2.imread(image_path), n_rows, n_cols)
+    collage = Collage.from_image(image, n_rows, n_cols, out_w, out_h)
     metadata = get_metadata(dir_path)
     collage.load_image_paths(metadata, threshold=None, offset=offset, repeat=True)
     cv2.imwrite(out_path, collage.make_collage())

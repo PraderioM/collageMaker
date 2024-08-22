@@ -16,9 +16,8 @@ class Collage:
         self._image_paths = image_paths
 
     @classmethod
-    def from_image(cls, image:np.array, n_cols: int, n_rows: int):
-        h, w, _ = image.shape
-        return cls(cv2.resize(image, (n_cols, n_rows)), shape=(h, w))
+    def from_image(cls, image:np.array, n_cols: int, n_rows: int, out_w: int, out_h: int):
+        return cls(cv2.resize(image, (n_cols, n_rows)), shape=(out_h, out_w))
 
     @property
     def n_rows(self):
