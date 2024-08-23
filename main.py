@@ -23,6 +23,7 @@ def get_metadata(dir_path: str) -> List[ImageMeta]:
     image_paths = glob(os.path.join(dir_path, '*'))
     print('Collecting image metadata...')
     metadata = [ImageMeta.from_path(path) for path in progressbar(image_paths)]
+    metadata = [image_meta for image_meta in metadata if image_meta is not None]
 
     with open(metadata_path, 'w') as f:
         json.dump([img.to_JSON() for img in metadata], f)

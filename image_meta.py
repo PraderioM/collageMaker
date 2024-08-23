@@ -13,6 +13,9 @@ class ImageMeta:
     def from_path(cls, path: str):
 
         image = cv2.imread(path)
+        if image is None:
+            print(f'could not read image {path}. It will be skipped.')
+            return None
 
         h, w, _ = image.shape
 
