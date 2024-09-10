@@ -42,7 +42,7 @@ def get_out_path(question: str) -> str:
             return path
 
 
-def get_integer(question:str, default: int = 100, min_val: int = 2) -> int:
+def get_float(question:str, default: float = 100, min_val: float = 2) -> float:
     while True:
         n = input(f'{question} [{default}]:\n\t')
 
@@ -52,8 +52,8 @@ def get_integer(question:str, default: int = 100, min_val: int = 2) -> int:
         if not n.isnumeric():
             print(f'`{n}` is not a number. Please insert number again.')
         else:
-            n = int(n)
+            n = float(n)
             if n < min_val:
-                print(f'Please insert an integer greater or equal than {min_val}.')
+                print(f'Please insert a number greater or equal than {min_val}.')
             else:
                 return n
