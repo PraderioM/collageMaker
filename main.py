@@ -41,9 +41,11 @@ def main():
     n_rows = int(get_float('Insert number of images you want to have on each column of the collage', 80, 2))
     size_incr = get_float('What should be the ration between height and width of the output image and height and width of the input image', 3, 0)
     offset = int(get_float('Insert how far away from each other can the images closest to the original be', 10, 0))
+    brightness_threshold = int(get_float('Insert a number if no image can be found with a color at most that far away from a given pixel then brightness will be added to the images in order to make them closer to the pixel. If -1 is chosen no threshold will be applied', -1, -1))
+    brightness_threshold = None if brightness_threshold == -1 else brightness_threshold
     collage = Collage.from_image(image, n_rows, n_cols, int(in_h*size_incr), int(in_w*size_incr))
     metadata = get_metadata(dir_path)
-    collage.load_image_paths(metadata, threshold=None, offset=offset, repeat=True)
+    collage.load_image_paths(metadata, sb_threshold=brightness_threshold, threshold=None, offset=offset, repeat=True)
     cv2.imwrite(out_path, collage.make_collage())
 
 if __name__ == '__main__':
