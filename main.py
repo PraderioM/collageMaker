@@ -45,7 +45,7 @@ def main():
     collage = Collage.from_image(image, n_rows, n_cols, int(in_h*size_incr), int(in_w*size_incr))
     metadata = get_metadata(dir_path)
     collage.load_image_paths(metadata, adjust_method=adjust_method, threshold=None, offset=offset, repeat=True)
-    cv2.imwrite(out_path, collage.make_collage())
+    cv2.imwrite(out_path, collage.make_collage(adjust_method=adjust_method))
 
 if __name__ == '__main__':
     main()

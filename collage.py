@@ -58,10 +58,10 @@ class Collage:
                         pass
                     elif adjust_method == "SV":
                         hsv_img = cv2.cvtColor(res_img, cv2.COLOR_BGR2HSV)
-                        hsv_img = cv2.add(hsv_img, np.reshape(np.array(correction, dtype=hsv_img.dtype), (1,1,3)))
+                        hsv_img = cv2.add(hsv_img, np.array(correction))
                         res_img = cv2.cvtColor(hsv_img, cv2.COLOR_HSV2BGR)
                     elif adjust_method == "RGB":
-                       res_img = cv2.add(res_img, np.reshape(np.array(correction, dtype=hsv_img.dtype), (1,1,3)))
+                        res_img = cv2.add(res_img, np.array(correction))
                     else:
                         raise TypeError(f"Unrecognized adjust method '{adjust_method}'. Please choose either 'N', 'RGB' or 'SV.")
 
