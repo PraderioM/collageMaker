@@ -1,9 +1,27 @@
 import os
+from typing import List, Optional
 
 
 
-def get_string(question: str) -> str:
-    return input(question + ':\n\t')
+def get_string(question: str, allowed_answers: Optional[List[str]] = None) -> str:
+    if allowed_answers is not None:
+        question = question + ": [ " + " | ".join(allowed_answers) + " ]\n\t"
+    else:
+        question = question + ":\n\t"
+
+    a = input(question)
+
+    while allowed_answers is not None and a not in allowed_answers:
+        a = input("I did not understand your answer, please reply with one of the following: " + " | ".join(allowed_answers) + "\n\t")
+
+    return a
+
+def get_adjust_method():
+    return get_string("""What method should be used for adjusting the color of the images used in the collage?
+    "N": No adjustment made (only recommended if a huge number of images is available).
+    "RGB": Images used in the collage will be uniformly added an average RGB color in order to match the target.
+    "SV": Distances will be computed using solely using hue and saturation and brightness of images will be adjusted in order to match the target""",
+                      ["N", "SV", "RGB"])
 
 
 def get_dir_path() -> str:

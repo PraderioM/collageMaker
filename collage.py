@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 from random import shuffle, choice
 
 import cv2
@@ -37,7 +37,7 @@ class Collage:
     def images_width(self):
         return int(self.shape[1] / self.n_cols)
 
-    def make_collage(self) -> np.array:
+    def make_collage(self, adjust_method: Union["N", "RGB", "SV"] = "N") -> np.array:
         if self._image_paths is None:
             raise RuntimeError('Cannot make the collage before loading the images.')
 
@@ -51,15 +51,19 @@ class Collage:
                 row: List[np.array] = []
                 for i in range(self.n_rows):
                     image = cv2.imread(self._image_paths[i][j][0])
-                    saturation_offset = self._image_paths[i][j][1]
-                    brightness_offset = self._image_paths[i][j][2]
+                    correction = self._image_paths[i][j][1]
                     res_img = cv2.resize(image, (w, h))
 
-                    if brightness_offset is not None:
+                    if adjust_method == "N":
+                        pass
+                    elif adjust_method == "SV":
                         hsv_img = cv2.cvtColor(res_img, cv2.COLOR_BGR2HSV)
-                        hsv_img[:,:,1] = cv2.add(hsv_img[:,:,1], np.full((h,w), saturation_offset, hsv_img.dtype))
-                        hsv_img[:,:,2] = cv2.add(hsv_img[:,:,2], np.full((h,w), brightness_offset, hsv_img.dtype))
+                        hsv_img = cv2.add(hsv_img, np.reshape(np.array(correction, dtype=hsv_img.dtype), (1,1,3)))
                         res_img = cv2.cvtColor(hsv_img, cv2.COLOR_HSV2BGR)
+                    elif adjust_method == "RGB":
+                       res_img = cv2.add(res_img, np.reshape(np.array(correction, dtype=hsv_img.dtype), (1,1,3)))
+                    else:
+                        raise TypeError(f"Unrecognized adjust method '{adjust_method}'. Please choose either 'N', 'RGB' or 'SV.")
 
                     row.append(res_img)
                     progress.update(j*self.n_rows+i)
@@ -68,76 +72,71 @@ class Collage:
 
         return np.concatenate(row_images, axis=1)
 
-    def load_image_paths(self, image_meta: List[ImageMeta], sb_threshold: Optional[int] = None, threshold: Optional[int] = None, offset: int = 10, repeat = True):
+    def load_image_paths(self, image_meta: List[ImageMeta], adjust_method: Union["N", "RGB", "SV"] = "N", threshold: Optional[int] = None, offset: int = 10, repeat = True):
         if len(image_meta) < self.n_cols*self.n_rows and not repeat:
             raise RuntimeError('Cannot have less images than the ones needed for the collage.s')
 
         pixels = [(i, j) for i in range(self.n_rows) for j in range(self.n_cols)]
         shuffle(pixels)
-        self._image_paths = [['']*self.n_cols for _ in range(self.n_rows)]
+        self._image_paths = [['', None]*self.n_cols for _ in range(self.n_rows)]
 
         all_images = image_meta.copy()
 
         print('Finding the best images to use for the collage...')
         for i, j in progressbar(pixels):
             b, g, r = self._image[i][j]
-            image_index, sat_correction, br_correction = self.get_best_match(all_images, (r, g, b), sb_threshold=sb_threshold, threshold=threshold, offset=offset)
-            self._image_paths[i][j] = all_images[image_index].path, sat_correction, br_correction
+            image_index, correction = self.get_best_match(all_images, (r, g, b), adjust_method=adjust_method, threshold=threshold, offset=offset)
+            self._image_paths[i][j] = all_images[image_index].path, correction
 
             if not repeat:
                 all_images.pop(image_index)
 
-    def get_best_match(self, img_list, color: Tuple[int, int, int], sb_threshold: Optional[int] = None, threshold: Optional[int] = None, offset: int = 10) -> Tuple[int, Optional[float], Optional[float]]:
-        min_dist: Optional[int | float] = None
-        good_matches: List[Tuple[int, int]] = []
-        sat_correction = None
-        br_correction = None
+    def get_best_match(self, img_list, color: Tuple[int, int, int], adjust_method: Union["N", "RGB", "SV"] = "N", threshold: Optional[int] = None, offset: int = 10) -> Tuple[int, Optional[Tuple[float, float, float]]]:
+        min_dist: Optional[Union[int, float]] = None
+        good_matches: List[Tuple[int, float, Optional[Tuple[float, float, float]]]] = []
 
         for i, img in enumerate(img_list):
-            dist = self.get_color_dist(img.means, color)
+            if adjust_method == "N":
+                dist = self.get_rgb_dist(img.means, color)
+                correction = None
+            elif adjust_method == "RGB":
+                dist, correction = self.get_adjusted_rgb_dist(img.means, color)
+            elif adjust_method == "SV":
+                dist, correction = self.get_adjusted_hsv_dist(img.means, color)
+            else:
+                raise TypeError(f"Unrecognized adjust method '{adjust_method}'. Please choose either 'N', 'RGB' or 'SV.")
 
             if min_dist is None:
                 min_dist = dist
-                good_matches = [(dist, i)]
+                good_matches = [(i, dist, correction)]
             elif dist < min_dist:
                 min_dist = dist
-                good_matches = [(dist, i)] + [(d, index) for d, index in good_matches if d - dist < offset]
+                good_matches = [(i, dist, correction)] + [(index, d, c) for index, d, c in good_matches if d - dist < offset]
             elif dist - min_dist < offset:
-                good_matches.append((dist, i))
-        good_match = choice(good_matches)[1]
-
-        if sb_threshold is not None and min_dist > sb_threshold:
-
-            min_dist: Optional[int] = None
-            good_br_corr_matches: List[Tuple[float, float, float, int]] = []
-
-            for i, img in enumerate(img_list):
-                dist, sat_offset, br_offset = self.get_hsv_brightness_corrected_dist(img.means, color)
-
-                if min_dist is None:
-                    min_dist = dist
-                    good_br_corr_matches = [(dist, sat_offset, br_offset, i)]
-                elif dist < min_dist:
-                    min_dist = dist
-                    good_br_corr_matches = [(dist, sat_offset, br_offset, i)] + [(d, s_off, b_off, index) for d, s_off, b_off, index in good_br_corr_matches if d - dist < offset]
-                elif dist - min_dist < offset:
-                    good_br_corr_matches.append((dist, sat_offset, br_offset, i))
-
-            sat_correction, br_correction, good_match = choice(good_br_corr_matches)[1:]
+                good_matches.append((i, dist, correction))
 
         if threshold is not None and min_dist > threshold:
             raise RuntimeError('Unable to satisfy the proposed threshold.')
 
-        return good_match, sat_correction, br_correction
+        good_match = choice(good_matches)
+
+        return good_match[0], good_match[2]
 
     @staticmethod
-    def get_color_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> int:
+    def get_rgb_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> int:
         return max([abs(color_1[i]- color_2[i]) for i in range(3)])
 
     @staticmethod
-    def get_hsv_brightness_corrected_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> Tuple[float, float, float]:
+    def get_adjusted_rgb_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> Tuple[int, Tuple[float, float, float]]:
+        dist = Collage.get_rgb_dist(color_1, color_2)
+        # noinspection PyTypeChecker
+        corr: Tuple[float,float, float] = tuple([float(color_2[i]) - float(color_1[i]) for i in range(3)])
+        return dist, corr
+
+    @staticmethod
+    def get_adjusted_hsv_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> Tuple[float, Tuple[float, float, float]]:
         hsv_color_1 = cv2.cvtColor(np.reshape(np.array(np.round(color_1), dtype=np.uint8), (1,1,3)), cv2.COLOR_BGR2HSV)
         hsv_color_2 = cv2.cvtColor(np.reshape(np.array(np.round(color_2), dtype=np.uint8), (1,1,3)), cv2.COLOR_BGR2HSV)
-        sat_diff = float(hsv_color_1[0][0][1]) - float(hsv_color_2[0][0][1])
-        br_diff = float(hsv_color_1[0][0][2]) - float(hsv_color_2[0][0][2])
-        return float(np.max(cv2.absdiff(hsv_color_1[:,:,0], hsv_color_2[:,:,0]))), sat_diff, br_diff
+        s_corr = float(hsv_color_2[0][0][1]) - float(hsv_color_1[0][0][1])
+        v_corr = float(hsv_color_2[0][0][2]) - float(hsv_color_1[0][0][2])
+        return float(np.max(cv2.absdiff(hsv_color_1[:,:,0], hsv_color_2[:,:,0]))), (0, s_corr, v_corr)
