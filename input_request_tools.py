@@ -20,8 +20,9 @@ def get_adjust_method():
     return get_string("""What method should be used for adjusting the color of the images used in the collage?
     "N": No adjustment made (only recommended if a huge number of images is available).
     "RGB": Images used in the collage will be uniformly added an average RGB color in order to match the target.
-    "SV": Distances will be computed using solely using hue and saturation and brightness of images will be adjusted in order to match the target""",
-                      ["N", "SV", "RGB"])
+    "SV": Distances will be computed using solely using hue. Saturation and brightness of images will be adjusted in order to match the target.
+    "V": Distances will be computed using solely using hue and Saturation. Brightness of images will be adjusted in order to match the target.""",
+                      ["N", "RGB", "SV", "V"])
 
 
 def get_dir_path() -> str:

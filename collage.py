@@ -7,6 +7,7 @@ from progressbar import progressbar, ProgressBar
 
 from image_meta import ImageMeta
 
+ADJUSTMENT_METHOD = Union["N", "RGB", "SV", "V"]
 
 class Collage:
     def __init__(self, image: np.array, shape: Tuple[int, int], image_paths: Optional[List[List[str]]] = None):
@@ -37,7 +38,7 @@ class Collage:
     def images_width(self):
         return int(self.shape[1] / self.n_cols)
 
-    def make_collage(self, adjust_method: Union["N", "RGB", "SV"] = "N") -> np.array:
+    def make_collage(self, adjust_method: ADJUSTMENT_METHOD = "N") -> np.array:
         if self._image_paths is None:
             raise RuntimeError('Cannot make the collage before loading the images.')
 
@@ -63,17 +64,19 @@ class Collage:
         # Apply correction to resulting collage
         if adjust_method == "N":
             pass
-        elif adjust_method == "SV":
-            out_img = self.apply_sv_correction(out_img)
         elif adjust_method == "RGB":
             out_img = self.apply_rgb_correction(out_img)
+        elif adjust_method == "V":
+            out_img = self.apply_hsv_correction(out_img, [0,1])
+        elif adjust_method == "SV":
+            out_img = self.apply_hsv_correction(out_img, [0])
         else:
             raise TypeError(
                 f"Unrecognized adjust method '{adjust_method}'. Please choose either 'N', 'RGB' or 'SV.")
 
         return out_img
 
-    def load_image_paths(self, image_meta: List[ImageMeta], adjust_method: Union["N", "RGB", "SV"] = "N", threshold: Optional[int] = None, offset: int = 10, repeat = True):
+    def load_image_paths(self, image_meta: List[ImageMeta], adjust_method: ADJUSTMENT_METHOD = "N", threshold: Optional[int] = None, offset: int = 10, repeat = True):
         if len(image_meta) < self.n_cols*self.n_rows and not repeat:
             raise RuntimeError('Cannot have less images than the ones needed for the collage.s')
 
@@ -92,7 +95,7 @@ class Collage:
             if not repeat:
                 all_images.pop(image_index)
 
-    def get_best_match(self, img_list, color: Tuple[int, int, int], adjust_method: Union["N", "RGB", "SV"] = "N", threshold: Optional[int] = None, offset: int = 10) -> int:
+    def get_best_match(self, img_list, color: Tuple[int, int, int], adjust_method: ADJUSTMENT_METHOD = "N", threshold: Optional[int] = None, offset: int = 10) -> int:
         min_dist: Optional[Union[int, float]] = None
         good_matches: List[Tuple[int, float]] = []
 
@@ -102,7 +105,9 @@ class Collage:
             elif adjust_method == "RGB":
                 dist = self.get_rgb_dist(img.means, color)
             elif adjust_method == "SV":
-                dist = self.get_hue_dist(img.means, color)
+                dist = self.get_hsv_dist(img.means, color, excluded_channels=[1,2])
+            elif adjust_method == "V":
+                dist = self.get_hsv_dist(img.means, color, excluded_channels=[2])
             else:
                 raise TypeError(f"Unrecognized adjust method '{adjust_method}'. Please choose either 'N', 'RGB' or 'SV.")
 
@@ -128,15 +133,20 @@ class Collage:
         return max([abs(color_1[i]- color_2[i]) for i in range(3)])
 
     @staticmethod
-    def get_hue_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> float:
+    def get_hsv_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int], excluded_channels: Optional[List[Union[0,1,2]]] = None) -> float:
         # WARNING colors are in RGB format unlike the usual BGR of cv2.
         r1, g1, b1 = color_1
         r2, g2, b2 = color_2
         hsv_color_1 = cv2.cvtColor(np.reshape(np.array(np.round((b1, g1, r1)), dtype=np.uint8), (1,1,3)), cv2.COLOR_RGB2HSV)
         hsv_color_2 = cv2.cvtColor(np.reshape(np.array(np.round((b2, g2, r2)), dtype=np.uint8), (1,1,3)), cv2.COLOR_RGB2HSV)
-        return float(np.max(cv2.absdiff(hsv_color_1[:,:,0], hsv_color_2[:,:,0])))
 
-    def apply_sv_correction(self, img):
+        dist = 0
+        for channel in range(3):
+            if excluded_channels is not None and channel not in excluded_channels:
+                dist += float(np.max(cv2.absdiff(hsv_color_1[:,:,channel], hsv_color_2[:,:,channel])))
+        return dist
+
+    def apply_hsv_correction(self, img, non_corrected_channels: Optional[List[Union[0,1,2]]] = None):
         # Pixelate the image so that each pixel matches a pixel of self._image. then convert it to HSV.
         # I do not dare to make this conversion on the small image as it might play badly with the HSV to BGR conversion on resizing.
         o_h, o_w, _ = img.shape
@@ -146,7 +156,14 @@ class Collage:
         # self._image should be used as a model on where to add and subtract values in order to make the given img look like it.
         mask = cv2.resize(self._image, (o_w, o_h))
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2HSV)
-        # We apply the mask in 2 steps, considering the values that need to be added and those that need substraction
+
+        # We avoid applying any correction on the specified channels.
+        if non_corrected_channels is not None:
+            for channel in set(non_corrected_channels):
+                pixelated_hsv[:, :, channel] = 0
+                mask[:, :, channel] = 0
+
+        # We apply the mask in 2 steps, considering the values that need to be added and those that need subtraction
         subtract_mask = np.maximum(pixelated_hsv, mask) - mask
         add_mask = mask - np.minimum(pixelated_hsv, mask)
 

@@ -42,7 +42,7 @@ def main():
     size_incr = get_float('What should be the ration between height and width of the output image and height and width of the input image', 3, 0)
     offset = int(get_float('Insert how far away from each other can the images closest to the original be', 10, 0))
     adjust_method = get_adjust_method()
-    collage = Collage.from_image(image, n_rows, n_cols, int(in_h*size_incr), int(in_w*size_incr))
+    collage = Collage.from_image(image, n_cols=n_cols, n_rows=n_rows, out_w=int(in_w*size_incr), out_h=int(in_h*size_incr))
     metadata = get_metadata(dir_path)
     collage.load_image_paths(metadata, adjust_method=adjust_method, threshold=None, offset=offset, repeat=True)
     cv2.imwrite(out_path, collage.make_collage(adjust_method=adjust_method))
