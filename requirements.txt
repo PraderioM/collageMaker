@@ -1,6 +1,5 @@
 opencv-python
 progressbar2
 numpy~=2.0.1
-bing_image_downloader
 imagehash
 pillow
