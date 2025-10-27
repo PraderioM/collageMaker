@@ -87,15 +87,18 @@ class Collage:
         all_images = image_meta.copy()
 
         print('Finding the best images to use for the collage...')
+        n_chosen: List[int] = [0]*len(all_images)
         for i, j in progressbar(pixels):
             b, g, r = self._image[i][j]
-            image_index = self.get_best_match(all_images, (r, g, b), adjust_method=adjust_method, threshold=threshold, offset=offset)
+            image_index = self.get_best_match(all_images, (r, g, b), n_chosen=n_chosen, adjust_method=adjust_method, threshold=threshold, offset=offset)
             self._image_paths[i][j] = all_images[image_index].path
+            n_chosen[image_index] += 1
 
             if not repeat:
                 all_images.pop(image_index)
 
-    def get_best_match(self, img_list, color: Tuple[int, int, int], adjust_method: ADJUSTMENT_METHOD = "N", threshold: Optional[int] = None, offset: int = 10) -> int:
+    def get_best_match(self, img_list, color: Tuple[int, int, int], n_chosen: Optional[List[int]] = None,
+                       adjust_method: ADJUSTMENT_METHOD = "N", threshold: Optional[int] = None, offset: int = 10) -> int:
         min_dist: Optional[Union[int, float]] = None
         good_matches: List[Tuple[int, float]] = []
 
@@ -123,9 +126,21 @@ class Collage:
         if threshold is not None and min_dist > threshold:
             raise RuntimeError('Unable to satisfy the proposed threshold.')
 
-        good_match = choice(good_matches)
+        if n_chosen is None:
+            p_distribution = None
+        else:
+            s = 0
+            filtered_chosen = []
+            for i, _ in good_matches:
+                n = n_chosen[i]
+                p = 1/(n+1)
+                s += p
+                filtered_chosen.append(p)
 
-        return good_match[0]
+            p_distribution = np.array(filtered_chosen, dtype=np.float64)/s
+        good_match = int(np.random.choice([i for i, _ in good_matches], p=p_distribution))
+
+        return good_match
 
     @staticmethod
     def get_rgb_dist(color_1: Tuple[int, int, int], color_2: Tuple[int, int, int]) -> int:
